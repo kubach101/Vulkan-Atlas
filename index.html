@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vulkan Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <rect x="5" y="5" width="22" height="22" rx="3" fill="none" stroke="var(--ink)" stroke-width="2"/>
+      <path d="M10 11 L16 22 L22 11" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+      <g stroke="var(--trace)" stroke-width="2"><path d="M1 11h4M1 16h4M1 21h4M27 11h4M27 16h4M27 21h4"/></g>
+    </svg>
+    <div><h1>Vulkan Atlas</h1><small>The Vulkan Tutorial as an interactive map · code in C</small></div>
+  </div>
+  <div class="tools">
+    <div class="progress" title="Concepts you marked as understood"><span>Learned</span><span class="progress-bar"><i id="prog-bar"></i></span><span id="prog-t">0 / 0</span></div>
+    <button class="btn" type="button" id="btn-search">Search <kbd>/</kbd></button>
+    <button class="btn primary" type="button" id="btn-quiz">Quiz me</button>
+    <button class="theme-switch" type="button" id="btn-theme" role="switch" aria-checked="false" aria-label="Dark mode"><span class="ts-track"><span class="ts-thumb"></span></span><span class="ts-label">Dark mode</span></button>
+  </div>
+</header>
+<main class="main">
+  <section class="board" aria-label="Concept diagram">
+    <div class="board-grid"></div>
+    <nav class="crumbs" id="crumbs" aria-label="Diagram path"></nav>
+    <svg id="svg" role="group" aria-label="Concept diagram" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="diagram-title" id="dtitle"></div>
+    <div class="legend" id="legend"></div>
+    <div class="zoom">
+      <button type="button" id="z-in" aria-label="Zoom in">+</button>
+      <button type="button" id="z-out" aria-label="Zoom out">−</button>
+      <button type="button" id="z-fit" aria-label="Fit diagram to view">⤢</button>
+    </div>
+  </section>
+  <aside class="panel" id="panel" aria-live="polite"><div class="panel-in" id="panel-in"></div></aside>
+</main>
+<div class="overlay" id="overlay" hidden></div>
+<script src="data-setup.js"></script>
+<script src="data-render.js"></script>
+<script src="data-resources.js"></script>
+<script src="widgets.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
