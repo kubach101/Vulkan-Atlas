@@ -39,7 +39,11 @@
       <button type="button" id="z-fit" aria-label="Fit diagram to view">⤢</button>
     </div>
   </section>
-  <aside class="panel" id="panel" aria-live="polite"><div class="panel-in" id="panel-in"></div></aside>
+  <aside class="panel" id="panel" aria-label="Concept details">
+    <div class="sheet-bar" id="sheet-bar"><span class="grip" aria-hidden="true"></span><button class="sheet-toggle" type="button" id="sheet-toggle" aria-expanded="false" aria-controls="panel-in"><span class="sheet-title" id="sheet-title"></span><span class="chev"><span class="chev-open">Details ▲</span><span class="chev-close">Close ▼</span></span></button></div>
+    <div class="panel-in" id="panel-in"></div>
+  </aside>
+<div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
 </main>
 <div class="overlay" id="overlay" hidden></div>
 <script src="data-setup.js"></script>

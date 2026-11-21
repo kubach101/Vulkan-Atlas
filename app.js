@@ -4,6 +4,9 @@
   const $ = (s, r = document) => r.querySelector(s);
   const SVG = "http://www.w3.org/2000/svg";
   const NW = 190, NH = 72, CW = 232, RH = 108;
+  const MCW = NW + 26, MRH = NH + 38;           // phone grid spacing
+  const mobileMq = matchMedia("(max-width: 760px)");
+  const isMobile = () => mobileMq.matches;
   const LEVELS = { 1: "Basic", 2: "Intermediate", 3: "Advanced", 4: "Expert" };
   const GROUPS = { setup: "Setup", present: "Presentation", pipeline: "Pipeline", draw: "Drawing", resource: "Resources", compute: "Compute", sync: "Synchronization" };
   const store = {
@@ -65,10 +68,15 @@
   let vb = { x: 0, y: 0, w: 1000, h: 600 }, content = { w: 1000, h: 600 };
   const setVB = () => svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
 
-  function edgeGeom(a, b) {
+  function edgeGeom(a, b, mobile) {
     const ax = a.x + NW / 2, ay = a.y + NH / 2, bx = b.x + NW / 2, by = b.y + NH / 2, dx = bx - ax, dy = by - ay;
     let p1, p2, c1, c2;
-    if (Math.abs(dx) > NW * 0.75 && Math.abs(dx) >= Math.abs(dy) * 0.8) {
+    if (Math.abs(dx) < 1 && Math.abs(dy) > (mobile ? MRH : RH) * 1.5) {
+      // same column, rows apart: route around the side instead of through the blocks in between
+      const s = mobile && a.x === 0 ? -1 : 1;
+      p1 = { x: ax + s * NW / 2, y: ay }; p2 = { x: bx + s * (NW / 2 + 4), y: by };
+      c1 = { x: p1.x + s * 34, y: p1.y }; c2 = { x: p2.x + s * 34, y: p2.y };
+    } else if (Math.abs(dx) > NW * 0.75 && Math.abs(dx) >= Math.abs(dy) * 0.8) {
       const s = Math.sign(dx); p1 = { x: ax + s * NW / 2, y: ay }; p2 = { x: bx - s * NW / 2 - s * 4, y: by };
       const k = Math.max(28, Math.abs(p2.x - p1.x) * 0.5); c1 = { x: p1.x + s * k, y: p1.y }; c2 = { x: p2.x - s * k, y: p2.y };
     } else {
@@ -89,14 +97,20 @@
     }
     svg.appendChild(defs);
     const root = svgEl("g", { class: "scene" }); svg.appendChild(root);
-    const pos = {};
-    d.nodes.forEach(([id, c, r]) => { if (N[id]) pos[id] = { x: c * CW, y: r * RH }; });
-    const showAll = d.labels !== "hover" && d.edges.length <= 12;
+    const mobile = isMobile(), pos = {};
+    svg.classList.toggle("m", mobile);
+    if (mobile) {
+      // phones: reading-order grid, ordered by the desktop column (creation order) then row
+      const cols = svg.clientWidth >= 560 ? 3 : 2;
+      d.nodes.filter(n => N[n[0]]).slice().sort((p, q) => p[1] - q[1] || p[2] - q[2])
+        .forEach(([id], i) => { pos[id] = { x: (i % cols) * MCW, y: Math.floor(i / cols) * MRH }; });
+    } else d.nodes.forEach(([id, c, r]) => { if (N[id]) pos[id] = { x: c * CW, y: r * RH }; });
+    const showAll = labelsAll();
     const eg = svgEl("g"), ng = svgEl("g"), lg = svgEl("g");
     root.append(eg, ng, lg);
     d.edges.forEach(([a, b, label]) => {
       if (!pos[a] || !pos[b]) return;
-      const g = svgEl("g", { class: "edge", "data-a": a, "data-b": b }), geo = edgeGeom(pos[a], pos[b]);
+      const g = svgEl("g", { class: "edge", "data-a": a, "data-b": b }), geo = edgeGeom(pos[a], pos[b], mobile);
       g.appendChild(svgEl("path", { d: geo.d, "marker-end": "url(#arrow)" }));
       const flow = svgEl("path", { d: geo.d, class: "flow" }); flow.style.display = "none"; g.appendChild(flow);
       eg.appendChild(g);
@@ -117,7 +131,8 @@
       const t = svgEl("text", { class: "t", x: 16, y: 31 }); t.textContent = n.title;
       if (n.title.length > 17) t.style.fontSize = n.title.length > 21 ? "11.5px" : "12.5px";
       g.appendChild(t);
-      const s = svgEl("text", { class: "s", x: 16, y: 52 }); s.textContent = n.api.length > 25 ? n.api.slice(0, 24) + "…" : n.api; g.appendChild(s);
+      const maxApi = n.diagram && id !== o ? 21 : 25;   // leave room for the + badge
+      const s = svgEl("text", { class: "s", x: 16, y: 52 }); s.textContent = n.api.length > maxApi ? n.api.slice(0, maxApi - 1) + "…" : n.api; g.appendChild(s);
       for (let i = 0; i < 4; i++) {
         const c = svgEl("circle", { cx: NW - 41 + i * 9, cy: 12, r: 3, class: i < n.level ? "lvl-pip" : "lvl-off" });
         if (i < n.level) c.setAttribute("fill", `var(--l${n.level})`);
@@ -131,20 +146,25 @@
       const tt = svgEl("title"); tt.textContent = `${n.title} (${LEVELS[n.level]})\n${n.summary}`; g.appendChild(tt);
       g.addEventListener("click", () => { if (!suppressClick) open(id); });
       g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(id); } });
-      g.addEventListener("mouseenter", () => { S.hover = id; updateHighlight(); });
-      g.addEventListener("mouseleave", () => { S.hover = null; updateHighlight(); });
+      // hover only for real mice: a tap would otherwise leave the dimming stuck on
+      g.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") { S.hover = id; updateHighlight(); } });
+      g.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") { S.hover = null; updateHighlight(); } });
       ng.appendChild(g);
     });
     const xs = Object.values(pos).map(p => p.x), ys = Object.values(pos).map(p => p.y);
     const minX = Math.min(...xs), minY = Math.min(...ys), maxX = Math.max(...xs) + NW, maxY = Math.max(...ys) + NH;
-    content = { x: minX - 40, y: minY - 70, w: maxX - minX + 80, h: maxY - minY + 170 };
+    content = mobile
+      ? { x: minX - 34, y: minY - 14, w: maxX - minX + 68, h: maxY - minY + 28 }
+      : { x: minX - 40, y: minY - 70, w: maxX - minX + 80, h: maxY - minY + 170 };
+    svg.style.height = mobile ? `${Math.round(svg.clientWidth * content.h / content.w)}px` : "";
     fit();
     updateHighlight();
     renderCrumbs();
-    $("#dtitle").innerHTML = `<b>${esc(N[o].title)}</b>${d.nodes.length} concepts · click a block, + opens its diagram`;
+    $("#dtitle").innerHTML = `<b>${esc(N[o].title)}</b>${d.nodes.length} concepts · ${mobile ? "tap" : "click"} a block, + opens its diagram`;
     if (animate && !reduceMotion && root.animate) root.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, easing: "ease-out" });
   }
   function fit() { vb = { ...content }; setVB(); }
+  const labelsAll = () => { const d = N[owner()].diagram; return !isMobile() && d.labels !== "hover" && d.edges.length <= 12; };
 
   function updateHighlight() {
     const o = owner();
@@ -158,7 +178,7 @@
       const p = g.querySelector("path"); if (p) p.setAttribute("marker-end", hi ? "url(#arrowHi)" : "url(#arrow)");
       const f = g.querySelector(".flow"); if (f) f.style.display = hi && !reduceMotion ? "" : "none";
       const t = g.querySelector("text");
-      if (t) { const showAll = N[o].diagram.labels !== "hover" && N[o].diagram.edges.length <= 12; t.style.display = showAll || hi ? "" : "none"; }
+      if (t) t.style.display = labelsAll() || hi ? "" : "none";
     });
     svg.querySelectorAll(".node").forEach(g => {
       const id = g.dataset.id;
@@ -187,12 +207,38 @@
     else if (inDiagram(before, id)) { if (N[id].diagram) S.stack.push(id); }
     else { S.stack = id === "root" ? ["root"] : ownerChain(id).slice(); if (N[id].diagram && id !== "root") S.stack.push(id); }
     S.sel = id; S.pulse = null;
-    if (owner() !== before || opts.force) renderDiagram(true); else updateHighlight();
+    const changed = owner() !== before;
+    if (changed || opts.force) renderDiagram(true); else updateHighlight();
     renderPanel(id);
     if (location.hash.slice(1) !== id) { try { history.replaceState(null, "", "#" + id); } catch (e) { location.hash = id; } }
-    if (opts.scroll !== false && matchMedia("(max-width: 760px)").matches && owner() === before && !opts.quiet) $("#panel").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    if (isMobile()) {
+      // opening a diagram shows the map; picking a block inside it opens the details sheet
+      if (changed) { const top = $(".board").getBoundingClientRect().top; if (top < 0) window.scrollTo({ top: scrollY + top, behavior: reduceMotion ? "auto" : "smooth" }); }
+      setSheet(opts.sheet != null ? opts.sheet : !changed);
+    }
   }
   const up = () => { if (S.stack.length > 1) open(S.stack[S.stack.length - 2]); };
+
+  /* ---------- bottom sheet (phones) ---------- */
+  const panelEl = $("#panel"), backdrop = $("#sheet-backdrop"), sheetBar = $("#sheet-bar");
+  const sheetOpen = () => panelEl.classList.contains("open");
+  function setSheet(want) {
+    const on = isMobile() && !!want;
+    panelEl.classList.toggle("open", on);
+    backdrop.hidden = !on;
+    $("#sheet-toggle").setAttribute("aria-expanded", String(on));
+    $("#panel-in").inert = isMobile() && !on;
+    if (!on) panelEl.scrollTop = 0;
+  }
+  let swipeY = null, ignoreTap = false;
+  sheetBar.addEventListener("click", () => { if (!ignoreTap) setSheet(!sheetOpen()); });
+  sheetBar.addEventListener("touchstart", (e) => { swipeY = e.touches[0].clientY; }, { passive: true });
+  sheetBar.addEventListener("touchend", (e) => {
+    if (swipeY == null) return;
+    const dy = e.changedTouches[0].clientY - swipeY; swipeY = null;
+    if (Math.abs(dy) > 30) { setSheet(dy < 0); ignoreTap = true; setTimeout(() => { ignoreTap = false; }, 400); }
+  });
+  backdrop.addEventListener("click", () => setSheet(false));
 
   /* ---------- panel ---------- */
   function renderPanel(id) {
@@ -228,6 +274,7 @@
     if (related.length) html += `<h3>Related</h3><div class="links">${related.map(c => `<button class="link-chip" type="button" data-go="${c}">${esc(N[c].title)}</button>`).join("")}</div>`;
     if (n.chapter) html += `<div class="chapter">Tutorial chapter: ${esc(n.chapter)}</div>`;
     panel.innerHTML = html;
+    $("#sheet-title").innerHTML = `<b>${esc(n.title)}</b><span class="lvl-mini l${n.level}">${LEVELS[n.level]}</span>`;
 
     $("#btn-done").onclick = () => toggleDone(id);
     const dive = $("#btn-dive"); if (dive) dive.onclick = () => open(id);
@@ -271,6 +318,7 @@
     vb = { x: p.x - (p.x - vb.x) * f, y: p.y - (p.y - vb.y) * f, w: vb.w * f, h: vb.h * f }; setVB();
   }
   svg.addEventListener("pointerdown", (e) => {
+    if (isMobile()) return;   // phones scroll the page instead of panning
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, vx: vb.x, vy: vb.y, moved: false, id: e.pointerId };
     if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) }; }
@@ -299,7 +347,7 @@
   };
   svg.addEventListener("pointerup", endPointer);
   svg.addEventListener("pointercancel", endPointer);
-  svg.addEventListener("wheel", (e) => { e.preventDefault(); zoomAt(e.clientX, e.clientY, Math.exp(e.deltaY * 0.0015)); }, { passive: false });
+  svg.addEventListener("wheel", (e) => { if (isMobile()) return; e.preventDefault(); zoomAt(e.clientX, e.clientY, Math.exp(e.deltaY * 0.0015)); }, { passive: false });
   $("#z-in").onclick = () => { const r = svg.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 0.8); };
   $("#z-out").onclick = () => { const r = svg.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.25); };
   $("#z-fit").onclick = fit;
@@ -338,14 +386,14 @@
       res.innerHTML = items.length ? items.map(({ n }, i) => `<div class="result" role="option" aria-selected="${i === cur}" data-id="${n.id}">
         <b>${esc(n.title)}</b>${levelBadge(n.level)}<span class="path">${esc(ownerChain(n.id).map(x => N[x].title).join(" › "))} · ${esc(n.api)}</span><small>${n.summary.replace(/<[^>]+>/g, "")}</small></div>`).join("")
         : `<div class="result"><small>No concept matches. Try an API name like <code>vkQueueSubmit</code>.</small></div>`;
-      res.querySelectorAll("[data-id]").forEach(r => r.onclick = () => { closeOverlay(); open(r.dataset.id, { quiet: true }); });
+      res.querySelectorAll("[data-id]").forEach(r => r.onclick = () => { closeOverlay(); open(r.dataset.id, { sheet: true }); });
       const c = res.querySelector('[aria-selected="true"]'); if (c) c.scrollIntoView({ block: "nearest" });
     };
     q.addEventListener("input", run);
     q.addEventListener("keydown", (e) => {
       if (e.key === "ArrowDown") { cur = Math.min(items.length - 1, cur + 1); draw(); e.preventDefault(); }
       else if (e.key === "ArrowUp") { cur = Math.max(0, cur - 1); draw(); e.preventDefault(); }
-      else if (e.key === "Enter" && items[cur]) { const id = items[cur].n.id; closeOverlay(); open(id, { quiet: true }); }
+      else if (e.key === "Enter" && items[cur]) { const id = items[cur].n.id; closeOverlay(); open(id, { sheet: true }); }
     });
     run(); q.focus();
   }
@@ -379,7 +427,7 @@
       });
       $("#qz-close").onclick = closeOverlay;
       $("#qz-next").onclick = () => { i++; draw(); };
-      $("#qz-go").onclick = () => { closeOverlay(); open(q.c, { quiet: true }); };
+      $("#qz-go").onclick = () => { closeOverlay(); open(q.c, { sheet: true }); };
     };
     draw();
   }
@@ -406,13 +454,29 @@
   document.addEventListener("keydown", (e) => {
     const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement && document.activeElement.tagName);
     if ((e.key === "k" && (e.ctrlKey || e.metaKey)) || (e.key === "/" && !typing)) { e.preventDefault(); openSearch(); return; }
-    if (e.key === "Escape") { if (!overlay.hidden) closeOverlay(); else if (!typing) up(); }
+    if (e.key === "Escape") {
+      if (!overlay.hidden) closeOverlay();
+      else if (isMobile() && sheetOpen()) setSheet(false);
+      else if (!typing) up();
+    }
   });
-  window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && N[id] && id !== S.sel) open(id, { quiet: true }); });
+  window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && N[id] && id !== S.sel) open(id); });
+
+  // re-layout when the phone/desktop mode or the phone width changes (not on URL-bar height changes)
+  const layoutKey = () => isMobile() ? "m" + svg.clientWidth : "d";
+  let lastLayout = null, resizeT;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeT);
+    resizeT = setTimeout(() => {
+      const k = layoutKey();
+      if (k !== lastLayout) { lastLayout = k; renderDiagram(false); setSheet(sheetOpen()); }
+    }, 150);
+  });
 
   /* ---------- boot ---------- */
   updateProgress();
-  const start = location.hash.slice(1);
+  const start = N[location.hash.slice(1)] ? location.hash.slice(1) : "root";
   renderDiagram(false);
-  open(N[start] ? start : "root", { quiet: true, force: true });
+  open(start, { force: true, sheet: start !== "root" && !N[start].diagram });
+  lastLayout = layoutKey();
 })();

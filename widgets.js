@@ -15,7 +15,7 @@ window.VKW = (() => {
             <option value="FIFO_RELAXED">FIFO_RELAXED</option>
             <option value="IMMEDIATE">IMMEDIATE</option>
           </select></label>
-        <label for="pm-fps">App renders at <b id="pm-fpsv">90</b> FPS
+        <label for="pm-fps"><span>App renders at <b id="pm-fpsv">90</b> FPS</span>
           <input id="pm-fps" type="range" min="20" max="200" step="5" value="90"></label>
       </div>
       <div class="modes">
@@ -75,8 +75,8 @@ window.VKW = (() => {
     host.innerHTML = h(`<h4>Frames-in-flight timeline</h4>
       <div class="row">
         <label for="fi-n">Frames in flight <select id="fi-n"><option>1</option><option selected>2</option><option>3</option></select></label>
-        <label for="fi-c">CPU record <b id="fi-cv">4</b> ms <input id="fi-c" type="range" min="1" max="14" value="4"></label>
-        <label for="fi-g">GPU render <b id="fi-gv">7</b> ms <input id="fi-g" type="range" min="1" max="14" value="7"></label>
+        <label for="fi-c"><span>CPU record <b id="fi-cv">4</b> ms</span> <input id="fi-c" type="range" min="1" max="14" value="4"></label>
+        <label for="fi-g"><span>GPU render <b id="fi-gv">7</b> ms</span> <input id="fi-g" type="range" min="1" max="14" value="7"></label>
       </div>
       <div class="timeline" id="fi-t"></div>
       <div class="out" id="fi-s"></div>`);
@@ -152,7 +152,7 @@ window.VKW = (() => {
     const up = (v, a) => Math.ceil(v / a) * a;
     host.innerHTML = h(`<h4>UBO alignment lab</h4>
       <div class="row" id="al-add"></div>
-      <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="al-fix"> add <code>_Alignas</code> where the shader needs it</label>
+      <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="al-fix"> <span>add <code>_Alignas</code> where the shader needs it</span></label>
       <div class="out" id="al-tab"></div>
       <div class="mem" id="al-mem"></div>
       <div class="mem-legend" id="al-leg"></div>
@@ -173,7 +173,7 @@ window.VKW = (() => {
       host.querySelector("#al-tab").innerHTML =
         `<table style="border-collapse:collapse;width:100%"><tr style="color:var(--ink-3)"><td>field</td><td>C offset</td><td>shader offset</td><td></td></tr>` +
         rows.map(([t, n, co, so, i]) => `<tr><td><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${colors[i % 8]}"></i> ${t} ${n}</td><td>${co}</td><td>${so}</td>
-          <td style="color:${co === so ? "var(--l1)" : "var(--l4)"}">${co === so ? "ok" : "mismatch"}</td><td><button class="btn" type="button" data-rm="${i}" aria-label="Remove ${n}" style="padding:0 6px">×</button></td></tr>`).join("") +
+          <td style="color:${co === so ? "var(--l1)" : "var(--l4)"}">${co === so ? "ok" : "wrong"}</td><td><button class="btn" type="button" data-rm="${i}" aria-label="Remove ${n}" style="padding:0 6px">×</button></td></tr>`).join("") +
         `</table><div style="margin-top:6px;color:${bad ? "var(--l4)" : "var(--l1)"}">${bad ? "The shader would read garbage: offsets differ." : "C and shader agree. The square renders."}</div>`;
       host.querySelector("#al-mem").innerHTML = cells.map(i => i < 0 ? `<b class="pad" title="padding"></b>` : `<b style="background:${colors[i % 8]}" title="${fields[i][1]}"></b>`).join("");
       host.querySelector("#al-leg").innerHTML = `<span>each cell = 4 bytes · row = 64 bytes · total ${total} B</span><span><i class="pad" style="background:repeating-linear-gradient(45deg,var(--grid) 0 3px,var(--line) 3px 5px)"></i> padding</span>`;
